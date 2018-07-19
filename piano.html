@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Piano</title>
+    <link rel="stylesheet" type="text/css" href="main.css">
+    <script type="text/javascript">
+    var midiTable = {
+      "z": 60,
+      "s": 61,
+      "x": 62,
+      "d": 63,
+      "c": 64,
+      "v": 65,
+      "g": 66,
+      "b": 67,
+      "h": 68,
+      "n": 69,
+      "j": 70,
+      "m": 71,
+      ",": 72,
+      "Z": 72,
+      "S": 73,
+      "X": 74,
+      "D": 75,
+      "C": 76,
+      "V": 77,
+      "G": 78,
+      "B": 79,
+      "H": 80,
+      "N": 81,
+      "J": 82,
+      "M": 83,
+      "<": 84
+    };
+    // https://elgervanboxtel.nl/site/blog/xmlhttprequest-extended-with-promises
+    var Request = (function() {
+        var get = function(url) {
+            return request('GET', url);
+        },
+        post = function(url){
+            return request('POST', url);
+        },
+        request = function(method, url) {
+            return new Promise(function (resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open(method, url);
+                xhr.onload = function(e){
+                    if (xhr.status === 200) {
+                        resolve(xhr);
+                    } else {
+                        reject(Error('XMLHttpRequest failed; error code:' + xhr.statusText));
+                    }
+                },
+                xhr.onerror = reject;
+                xhr.send();
+            });
+        };
+
+        return {
+            get: get,
+            post: post,
+            request: request
+        }
+    })();
+    var handleNote = function (command, note, velocity) {
+        if (note) {
+            Request.get("midi?command=" + command + "&note=" + note + "&velocity=" + velocity).catch(function(e) { // catch all XHR errors
+                console.error('Network error while fetching');
+            }).then(function (e) {
+                return e.response;
+            }).then(function (responseXML) {
+                console.log(responseXML);
+            }).catch(function(e) { // catch all other errors
+                console.dir(e);
+                console.log(e.message, "readystate:", e);
+                // throw an error
+                throw new Error("throw error");
+            });
+        }
+    }
+    var noteOn = function(note, velocity) {
+        handleNote("note_on", note, 127);
+    }
+
+    var noteOff = function(note, velocity) {
+        handleNote("note_off", note, 127);
+    }
+
+    var pointers=[];
+
+    var currentOctave = 3;
+    var pointerDebugging = true;
+
+    function touchstart( ev ) {
+	    for (var i=0; i<ev.targetTouches.length; i++) {
+	        var touch = ev.targetTouches[0];
+		    var element = touch.target;
+
+            element.setAttribute("style", "background: blue");
+		    var note = parseInt( element.id.substring( 1 ) );
+		    console.log( "touchstart: id: " + element.id + "identifier: " + touch.identifier + " note:" + note );
+		    if (!isNaN(note)) {
+			    noteOn( note + 12*(3-currentOctave), 0.75 );
+			    var keybox = document.getElementById("keybox")
+			    pointers[touch.identifier]=note;
+		    }
+	    }
+	    ev.preventDefault();
+    }
+
+    function touchmove( ev ) {
+	    for (var i=0; i<ev.targetTouches.length; i++) {
+	        var touch = ev.targetTouches[0];
+		    var element = touch.target;
+
+		    var note = parseInt( element.id.substring( 1 ) );
+		    console.log( "touchmove: id: " + element.id + "identifier: " + touch.identifier + " note:" + note );
+		    if (!isNaN(note) && pointers[touch.identifier] && pointers[touch.identifier]!=note) {
+			    noteOff(pointers[touch.identifier] + 12*(3-currentOctave));
+			    noteOn( note + 12*(3-currentOctave), 0.75 );
+			    var keybox = document.getElementById("keybox")
+			    pointers[touch.identifier]=note;
+		    }
+	    }
+	    ev.preventDefault();
+    }
+
+    function touchend( ev ) {
+	    var note = parseInt( ev.target.id.substring( 1 ) );
+        ev.target.setAttribute("style", "");
+	    console.log( "touchend: id: " + ev.target.id + " note:" + note );
+	    if (note != NaN)
+		    noteOff( note + 12*(3-currentOctave) );
+	    pointers[ev.pointerId]=null;
+	    var keybox = document.getElementById("keybox")
+	    ev.preventDefault();
+    }
+
+    function touchcancel( ev ) {
+	    console.log( "touchcancel" );
+	    ev.preventDefault();
+    }
+
+    function pointerDown( ev ) {
+	    var note = parseInt( ev.target.id.substring( 1 ) );
+        ev.target.setAttribute("style", "background: blue");
+	    if (pointerDebugging)
+		    console.log( "pointer down: target: " + ev.target.id + " note: " + note );
+	    if (!isNaN(note)) {
+		    noteOn( note + 12*(3-currentOctave), 0.75 );
+		    var keybox = document.getElementById("keybox")
+		    pointers[ev.pointerId]=note;
+	    }
+	    ev.preventDefault();
+    }
+
+    function pointerMove( ev ) {
+	    var note = parseInt( ev.target.id.substring( 1 ) );
+	    if (pointerDebugging)
+		    console.log( "pointer move: target: " + ev.target.id + " note: " + note );
+	    if (!isNaN(note) && pointers[ev.pointerId] && pointers[ev.pointerId]!=note) {
+		    if (pointers[ev.pointerId])
+			    noteOff(pointers[ev.pointerId] + 12*(3-currentOctave));
+		    noteOn( note + 12*(3-currentOctave), 0.75 );
+		    pointers[ev.pointerId]=note;
+	    }
+	    ev.preventDefault();
+    }
+
+    function pointerUp( ev ) {
+	    var note = parseInt( ev.target.id.substring( 1 ) );
+        ev.target.setAttribute("style", "");
+	    if (pointerDebugging)
+		    console.log( "pointer up: note: " + note );
+	    if (note != NaN)
+		    noteOff( note + 12*(3-currentOctave) );
+	    pointers[ev.pointerId]=null;
+	    var keybox = document.getElementById("keybox")
+	    ev.preventDefault();
+    }
+    window.addEventListener("keydown", function (e) {
+        if (!e.repeat) {
+            handleNote("note_on", midiTable[e.key], 127);
+        }
+    }, false);
+    window.addEventListener("keyup", function (e) {
+        if (!e.repeat) {
+            handleNote("note_off", midiTable[e.key], 127);
+        }
+    }, false);
+    window.addEventListener("load", function (e) {
+        keybox = document.getElementById("keybox");
+	    keybox.addEventListener('touchstart', touchstart);
+	    //keybox.addEventListener('touchmove', touchmove);
+	    keybox.addEventListener('touchend', touchend);
+	    keybox.addEventListener('mousedown', pointerDown);
+	    //keybox.addEventListener('track', pointerMove);
+	    keybox.addEventListener('mouseup', pointerUp);
+    }, false);
+    </script>
+</head>
+<body>
+    <h1>Piano</h1>
+    <div id="keybox" touch-action="none">
+        <div id="blackkeys">
+            <span id="k61" class="black key"></span><span id="k63" class="black key"></span><span class="spacer"></span><span id="k66" class="black key"></span><span id="k68" class="black key"></span><span id="k70" class="black key"></span><span class="spacer"></span><span id="k73" class="black key"></span><span id="k75" class="black key"></span><span class="spacer"></span><span id="k78" class="black key"></span><span id="k80" class="black key"></span><span id="k82" class="black key"></span>
+        </div>
+        <span id="k60" class="white key"></span><span id="k62" class="white key"></span><span id="k64" class="white key"></span><span id="k65" class="white key"></span><span id="k67" class="white key"></span><span id="k69" class="white key"></span><span id="k71" class="white key"></span><span id="k72" class="white key"></span><span id="k74" class="white key"></span><span id="k76" class="white key"></span><span id="k77" class="white key"></span><span id="k79" class="white key"></span><span id="k81" class="white key"></span><span id="k83" class="white key"></span>
+    </div>
+</body>
+</html>
+

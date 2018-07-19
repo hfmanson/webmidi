@@ -12,14 +12,17 @@ class Midi(Resource):
         note = cgi.escape(args["note"][0])
         velocity = cgi.escape(args["velocity"][0])
         output.send(mido.Message(command, note=int(note), velocity=int(velocity)))
-        return '<html><body>command: %s, note: %s, velocity: %s</body></html>' % (command, note, velocity)
+        print '<html><body>command: %s, note: %s, velocity: %s</body></html>' % (command, note, velocity)
+        #return '<html><body>command: %s, note: %s, velocity: %s</body></html>' % (command, note, velocity)
+        return ''
 
 
 
 output = mido.open_output('MidiSport 1x1:MidiSport 1x1 MIDI 1 20:0')
 root = Resource()
 root.putChild("midi", Midi())
-root.putChild("page", File("midi.html"))
+root.putChild("piano.html", File("piano.html"))
+root.putChild("main.css", File("main.css"))
 factory = Site(root)
 reactor.listenTCP(8080, factory)
 reactor.run()
