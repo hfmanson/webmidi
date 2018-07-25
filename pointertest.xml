@@ -1,0 +1,171 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Pointer test</title>
+<!--
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+-->
+    <link rel="stylesheet" type="text/css" href="main.css" />
+    <script type="text/javascript">
+<![CDATA[
+    // https://elgervanboxtel.nl/site/blog/xmlhttprequest-extended-with-promises
+    var Request = (function() {
+        var get = function(url) {
+            return request('GET', url);
+        },
+        post = function(url){
+            return request('POST', url);
+        },
+        request = function(method, url) {
+            return new Promise(function (resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open(method, url);
+                xhr.onload = function(e){
+                    if (xhr.status === 200) {
+                        resolve(xhr);
+                    } else {
+                        reject(Error('XMLHttpRequest failed; error code:' + xhr.statusText));
+                    }
+                },
+                xhr.onerror = reject;
+                xhr.send();
+            });
+        };
+
+        return {
+            get: get,
+            post: post,
+            request: request
+        }
+    })();
+    var handleNote = function (command, note, velocity) {
+        console.log("handleNote, command: " + command + ", note: " + note);
+        if (note) {
+            Request.get("midi?command=" + command + "&note=" + note + "&velocity=" + velocity).catch(function(e) { // catch all XHR errors
+                console.error('Network error while fetching');
+            }).then(function (e) {
+                return e.response;
+            }).then(function (responseXML) {
+                //console.log(responseXML);
+            }).catch(function(e) { // catch all other errors
+                console.dir(e);
+                console.log(e.message, "readystate:", e);
+                // throw an error
+                throw new Error("throw error");
+            });
+        }
+    }
+    class PianoKey extends HTMLElement {
+        constructor() {
+            // Always call super first in constructor
+            super();
+            this.playing = false;
+            this.note = parseInt(this.getAttribute("data-note"));
+            this.key = this.getAttribute("data-key");
+            this.pointerWatcher();
+            this.keyWatcher();
+            //this.addEventListener("midimessage", (ev) => console.log("1: " + ev), false);
+        }
+        dispatchMidiEvent(detail) {
+            const midievent = new CustomEvent('midimessage', { bubbles: true, detail: detail });
+            this.dispatchEvent(midievent);
+        }
+        startPlaying(target) {
+            if (!this.playing) {
+                console.log("Start playing, note: " + this.note);
+                this.playing = true;
+                this.dispatchMidiEvent([ 0x90, this.note, 0x7f ]);
+                handleNote("note_on", this.note, 0x7f);
+                target.setAttribute("style", "background: blue");
+            }
+        }
+        stopPlaying(target) {
+            if (this.playing) {
+                console.log("Stop playing, note: " + this.note);
+                this.playing = false;
+                target.setAttribute("style", "");
+                this.dispatchMidiEvent([ 0x90, this.note, 0x00 ]);
+                handleNote("note_off", this.note, 0x7f);
+           }
+        }
+        pointerWatcher() {
+            this.addEventListener("pointerdown", (ev) => {
+                this.startPlaying(ev.target);
+            }, false);
+            this.addEventListener("pointerover", (ev) => {
+console.log("2: " + ev);
+                if (ev.pressure !== 0) {
+                    this.startPlaying(ev.target);
+                }
+            }, false);
+            for (const evname of [ "pointerout", "pointerup" ]) {
+                this.addEventListener(evname, (ev) => {
+                    this.stopPlaying(ev.target);
+                }, false);
+            }
+        }
+        keyWatcher() {
+            window.addEventListener("keydown", (ev) => {
+                if (!ev.repeat && ev.key === this.key && !this.playing) {
+                    this.startPlaying(this);
+                }
+            }, false);
+            window.addEventListener("keyup", (ev) => {
+                if (!ev.repeat && ev.key === this.key && this.playing) {
+                    this.stopPlaying(this);
+                }
+            }, false);
+        }
+    }
+    class PianoKeyWhite extends PianoKey {
+        constructor() {
+            // Always call super first in constructor
+            super();
+            this.setAttribute("class", "white key");
+        }
+    }
+    class PianoKeyBlack extends PianoKey {
+        constructor() {
+            // Always call super first in constructor
+            super();
+            this.setAttribute("class", "black key");
+        }
+    }
+    function touchWatcher(logel, el) {
+        const logEventTouch = (ev) => {
+	        for (var i=0; i<ev.targetTouches.length; i++) {
+	            var touch = ev.targetTouches[0];
+
+                logel.value += "touch.type: " + ev.type + ", id: " + touch.target.id + "\n";
+            //target.setAttribute("style", ev.pressure !== 0 && ev.type !== "pointerout" ? "background: blue" : ""); 
+            }
+            ev.preventDefault();
+        }
+        for (const el of Object.values(ellist)) { 
+            for (const evname of [ "touchstart", "touchend", "touchmove" ]) {
+                el.addEventListener(evname, logEventTouch, false);
+                //window.addEventListener(evname, logEvent, false);
+            }
+        }
+    }
+    addEventListener("load", function (ev) {
+        customElements.define('piano-key-white', PianoKeyWhite);
+        customElements.define('piano-key-black', PianoKeyBlack);
+        window.addEventListener("midimessage", (ev) => {
+            console.log(ev);
+        }, false);
+    } ,false);
+    ]]>
+    </script>
+</head>
+<body>
+    <h1 id="h1">Pointer test</h1>
+    <div id="keybox" touch-action="none">
+        <div id="blackkeys">
+            <piano-key-black data-note="61" data-key="s"/><piano-key-black data-note="63" data-key="d"/><span class="spacer"/><piano-key-black data-note="66" data-key="g"/><piano-key-black data-note="68" data-key="h"/><piano-key-black data-note="70" data-key="j"/><span class="spacer"/><piano-key-black data-note="73" data-key="S"/><piano-key-black data-note="75" data-key="D"/><span class="spacer"/><piano-key-black data-note="78" data-key="G"/><piano-key-black data-note="80" data-key="H"/><piano-key-black data-note="82" data-key="J"/><span class="spacer"/>
+        </div>
+        <piano-key-white data-note="60" data-key="z"/><piano-key-white data-note="62" data-key="x"/><piano-key-white data-note="64" data-key="c"/><piano-key-white data-note="65" data-key="v"/><piano-key-white data-note="67" data-key="b"/><piano-key-white data-note="69" data-key="n"/><piano-key-white data-note="71" data-key="m"/><piano-key-white data-note="72" data-key="Z"/><piano-key-white data-note="74" data-key="X"/><piano-key-white data-note="76" data-key="C"/><piano-key-white data-note="77" data-key="V"/><piano-key-white data-note="79" data-key="B"/><piano-key-white data-note="81" data-key="N"/><piano-key-white data-note="83" data-key="M"/>
+    </div>
+    <br />
+</body>
+</html>
+
